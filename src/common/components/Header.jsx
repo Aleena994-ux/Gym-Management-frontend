@@ -15,14 +15,12 @@ export default function Header() {
           <span>Fitora</span>
         </div>
 
-        {/* Desktop Menu */}
         <nav className="hidden md:flex space-x-8 text-gray-300">
           <Link to="/" className="hover:text-red-900">Home</Link>
           <Link to="/services" className="hover:text-red-900">Services</Link>
           <Link to="/login" className="hover:text-red-900">Login</Link>
         </nav>
 
-        {/* Mobile Menu Button */}
         <button
           onClick={() => setOpen(!open)}
           className="md:hidden text-gray-300 focus:outline-none"
@@ -31,14 +29,11 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Mobile Dropdown */}
+      {/* Dropdown */}
       {open && (
         <div className="md:hidden bg-black text-gray-300 px-6 pb-4 space-y-3">
           <Link to="/" className="block hover:text-red-900">Home</Link>
-          <Link to="/about" className="block hover:text-red-900">About</Link>
           <Link to="/services" className="block hover:text-red-900">Services</Link>
-          <Link to="/trainers" className="block hover:text-red-900">Trainers</Link>
-          <Link to="/contact" className="block hover:text-red-900">Contact</Link>
           <Link to="/login" className="block hover:text-red-900">Login</Link>
         </div>
       )}

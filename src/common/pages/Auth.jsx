@@ -1,13 +1,14 @@
 import React, { useState } from "react";
-import { FaHome, FaUserCircle } from "react-icons/fa";
+import { FaHome } from "react-icons/fa";
 import { GoEye, GoEyeClosed } from "react-icons/go";
 import { Link, useNavigate } from "react-router-dom";
-import { loginAPI, registerAPI, trainerLoginAPI } from "../../services/allAPI"; // Added trainerLoginAPI
+import { loginAPI, registerAPI, trainerLoginAPI } from "../../services/allAPI";
 import { toast } from "react-toastify";
 
 function Auth({ register }) {
   const [viewPassword, setViewPassword] = useState(false);
-  const [role, setRole] = useState("user"); // Added role state
+  const [role, setRole] = useState("user");
+  const [emailError, setEmailError] = useState("");
   const [userDetails, setUserDetails] = useState({
     username: "",
     email: "",
@@ -16,11 +17,20 @@ function Auth({ register }) {
 
   const navigate = useNavigate();
 
-  // Register handler (unchanged)
+  const isValidEmail = (email) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // REGISTER
   const HandleRegister = async () => {
     const { username, email, password } = userDetails;
+
     if (!username || !email || !password) {
       toast.warning("Fill the form completely");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address");
       return;
     }
 
@@ -29,122 +39,114 @@ function Auth({ register }) {
       if (result.status === 200) {
         toast.success("Registered Successfully");
         setUserDetails({ username: "", email: "", password: "" });
-        navigate("/login");
-      } else if (result.status === 404) {
-        toast.warning(result.response.data);
+        navigate("/user-request");
       } else {
-        toast.error("Something Went Wrong");
+        toast.error("Something went wrong");
       }
-    } catch (error) {
+    } catch {
       toast.error("Server Error");
     }
   };
 
-  // Login handler (updated for trainer)
+  // LOGIN
   const handleLogin = async () => {
     const { email, password } = userDetails;
+
     if (!email || !password) {
       toast.warning("Fill the form completely");
       return;
     }
 
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
     try {
       let result;
+
+      // TRAINER LOGIN
       if (role === "trainer") {
         result = await trainerLoginAPI({ email, password });
-      } else {
-        result = await loginAPI(userDetails);
+        if (result.status === 200) {
+          sessionStorage.setItem(
+            "existingTrainer",
+            JSON.stringify(result.data.trainer)
+          );
+          sessionStorage.setItem("token", result.data.token);
+          toast.success("Trainer login successful");
+          navigate("/trainer-home");
+        }
+        return;
       }
+
+      result = await loginAPI({ email, password });
 
       if (result.status === 200) {
-        // Save session
-        sessionStorage.setItem("existingUser", JSON.stringify(result.data.trainer || result.data.existingUser));
-        sessionStorage.setItem("token", result.data.token);
+        const user = result.data.existingUser;
 
+        if (
+          user.role !== "admin" &&
+          (user.membershipStatus === "expired" ||
+            (user.membershipEndDate &&
+              new Date(user.membershipEndDate) < new Date()))
+        ) {
+          sessionStorage.setItem("existingUser", JSON.stringify(user));
+          sessionStorage.setItem("token", result.data.token);
+
+          toast.error("Membership Expired! Please renew to continue.");
+          navigate("/user-payment");
+          return;
+        }
+
+        // NORMAL LOGIN
+        sessionStorage.setItem("existingUser", JSON.stringify(user));
+        sessionStorage.setItem("token", result.data.token);
         toast.success("Login Successful");
 
-        // Navigate based on role
-// Navigate based on role
-if (role === "admin") {
-  navigate("/admin-home");
-
-} else if (role === "trainer") {
-  navigate("/trainer-home");
-
-} else {
-  // USER FLOW
-  const user = result.data.existingUser;
-
-  // ✅ ADMIN CHECK FIRST
-  if (user.role === "admin") {
-    navigate("/admin-home");
-    return;
-  }
-  
-  // ✅ NORMAL USER FLOW
-  if (user.status === "registered") {
-    navigate("/user-request");
-  }
-  else if (user.status === "enquiry-submitted") {
-    toast.info("Please wait for admin approval");
-    navigate("/user-home");
-  }
-  else if (user.status === "approved") {
-    navigate("/user-payment");
-  }
-  else if (user.status === "active-member") {
-    navigate("/user-home");
-  }
-  
-}  
-
-        setUserDetails({ username: "", email: "", password: "" });
-      } else if (result.status === 404) {
-        toast.warning(result.response.data);
-      } else if (result.status === 401) {
-        toast.warning(result.response.data);
-      } else {
-        toast.error("Something Went Wrong");
+        if (user.role === "admin") {
+          navigate("/admin-home");
+        } else {
+          if (user.status === "registered") navigate("/user-request");
+          else if (user.status === "enquiry-submitted") {
+            toast.info("Please wait for admin approval");
+            navigate("/");
+          } else if (user.status === "approved") navigate("/user-payment");
+          else if (user.status === "active-member") navigate("/user-home");
+        }
       }
+
+      setUserDetails({ username: "", email: "", password: "" });
+      setEmailError("");
     } catch (error) {
       toast.error("Server Error");
     }
   };
 
   return (
-    <div
-      className="w-full min-h-screen flex justify-center items-center flex-col 
-      bg-[url('https://images.unsplash.com/photo-1598965402089-897ce52e7c88?q=80&w=1000&auto=format&fit=crop')]
-      bg-cover bg-center bg-black/80 bg-blend-overlay relative"
-    >
+    <div className="min-h-screen flex bg-[#8b2c2c] p-6">
       <FaHome
         onClick={() => navigate("/")}
-        className="absolute top-5 left-5 text-white text-2xl cursor-pointer hover:text-red-500 transition"
+        className="absolute top-6 left-6 text-white text-2xl cursor-pointer"
       />
 
-      <div
-        style={{ width: "420px" }}
-        className="bg-zinc-900 text-white p-6 rounded-xl shadow-xl mt-6 border border-zinc-700"
-      >
-        <div
-          style={{ width: "100px", height: "100px", borderRadius: "50%" }}
-          className="border border-red-900 mb-4 flex justify-center items-center"
-        >
-          <FaUserCircle className="text-6xl text-gray-300" />
-        </div>
+      <div className="max-w-6xl w-full mx-auto bg-white/20 backdrop-blur-xl rounded-2xl overflow-hidden flex shadow-2xl">
+        {/* LEFT FORM */}
+        <div className="w-full md:w-1/2 p-10 bg-white/60 backdrop-blur-2xl rounded-l-2xl">
+          <h1 className="text-3xl font-bold mb-2">
+            {register ? "Create Account" : "Welcome Back"}
+          </h1>
+          <p className="text-gray-700 mb-6">
+            A brand new day is here. It’s your day to shape.
+          </p>
 
-        <h1 className="text-2xl font-semibold mb-2">
-          {register ? "Create Account" : "Welcome Back"}
-        </h1>
-
-        <form>
-          {!register && ( // Add role select for login only
-            <div className="my-4">
-              <label className="text-sm text-gray-300">Role</label>
+          {!register && (
+            <div className="mb-4">
+              <label className="text-sm text-gray-700">Role</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="bg-zinc-800 p-2 w-full rounded mt-1 text-white border border-zinc-700"
+                className="w-full mt-1 p-3 rounded-lg bg-white/70 border border-gray-300"
               >
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
@@ -154,101 +156,91 @@ if (role === "admin") {
           )}
 
           {register && (
-            <div className="my-4">
-              <label className="text-sm text-gray-300">Username</label>
+            <div className="mb-4">
+              <label className="text-sm text-gray-700">Username</label>
               <input
                 type="text"
                 value={userDetails.username}
                 onChange={(e) =>
                   setUserDetails({ ...userDetails, username: e.target.value })
                 }
-                placeholder="Enter your username"
-                className="bg-zinc-800 p-2 w-full rounded mt-1 text-white placeholder-gray-500 border border-zinc-700"
+                className="w-full mt-1 p-3 rounded-lg bg-white/70 border border-gray-300"
               />
             </div>
           )}
 
-          <div className="my-4">
-            <label className="text-sm text-gray-300">Email</label>
+          <div className="mb-1">
+            <label className="text-sm text-gray-700">Email</label>
             <input
               type="email"
               value={userDetails.email}
-              onChange={(e) =>
-                setUserDetails({ ...userDetails, email: e.target.value })
-              }
-              placeholder="Enter your email"
-              className="bg-zinc-800 p-2 w-full rounded mt-1 text-white placeholder-gray-500 border border-zinc-700"
+              onChange={(e) => {
+                setUserDetails({ ...userDetails, email: e.target.value });
+                setEmailError("");
+              }}
+              className={`w-full mt-1 p-3 rounded-lg bg-white/70 border ${
+                emailError ? "border-red-500" : "border-gray-300"
+              }`}
             />
           </div>
 
-          <div className="my-4">
-            <label className="text-sm text-gray-300">Password</label>
-            <div className="flex items-center relative">
-              <input
-                type={viewPassword ? "text" : "password"}
-                value={userDetails.password}
-                onChange={(e) =>
-                  setUserDetails({ ...userDetails, password: e.target.value })
-                }
-                placeholder="Enter your password"
-                className="bg-zinc-800 p-2 w-full rounded mt-1 text-white placeholder-gray-500 border border-zinc-700"
-              />
+          {emailError && (
+            <p className="text-xs text-red-600 mb-3">{emailError}</p>
+          )}
+
+          <div className="mb-4 relative">
+            <label className="text-sm text-gray-700">Password</label>
+            <input
+              type={viewPassword ? "text" : "password"}
+              value={userDetails.password}
+              onChange={(e) =>
+                setUserDetails({ ...userDetails, password: e.target.value })
+              }
+              className="w-full mt-1 p-3 rounded-lg bg-white/70 border border-gray-300 pr-10"
+            />
+            <span className="absolute right-3 top-10 cursor-pointer text-gray-600">
               {viewPassword ? (
-                <GoEye
-                  onClick={() => setViewPassword(!viewPassword)}
-                  className="text-gray-400 cursor-pointer absolute right-3 top-4"
-                />
+                <GoEye onClick={() => setViewPassword(false)} />
               ) : (
-                <GoEyeClosed
-                  onClick={() => setViewPassword(!viewPassword)}
-                  className="text-gray-400 cursor-pointer absolute right-3 top-4"
-                />
+                <GoEyeClosed onClick={() => setViewPassword(true)} />
               )}
-            </div>
+            </span>
           </div>
 
-          <p className="text-xs text-red-400 mt-1">
-            Never share your password with anyone.
-          </p>
+          <button
+            onClick={register ? HandleRegister : handleLogin}
+            className="w-full py-3 rounded-lg text-white font-semibold bg-red-800"
+          >
+            {register ? "Sign up" : "Login"}
+          </button>
 
-          <div className="mt-5">
+          <p className="text-center text-sm mt-6">
             {register ? (
-              <button
-                type="button"
-                onClick={HandleRegister}
-                className="bg-red-900 hover:bg-red-700 p-2 w-full rounded font-semibold transition"
-              >
-                Register
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="bg-red-900 hover:bg-red-700 p-2 w-full rounded font-semibold transition"
-              >
-                Login
-              </button>
-            )}
-          </div>
-
-          <div className="mt-4 text-sm">
-            {register ? (
-              <p className="text-gray-300">
+              <>
                 Already have an account?{" "}
-                <Link className="text-red-500 font-medium" to={"/login"}>
+                <Link to="/login" className="text-red-600 font-semibold">
                   Login
                 </Link>
-              </p>
+              </>
             ) : (
-              <p className="text-gray-300">
-                New here?{" "}
-                <Link className="text-red-500 font-medium" to={"/register"}>
-                  Register
+              <>
+                Don’t have an account?{" "}
+                <Link to="/register" className="text-red-600 font-semibold">
+                  Sign up
                 </Link>
-              </p>
+              </>
             )}
-          </div>
-        </form>
+          </p>
+        </div>
+
+        {/* RIGHT IMAGE */}
+        <div className="hidden md:block md:w-1/2">
+          <img
+            src="https://i.pinimg.com/736x/b9/ca/e2/b9cae2853ae3d51a1be64b4b5f24ea01.jpg"
+            alt="gym"
+            className="h-full w-full object-cover"
+          />
+        </div>
       </div>
     </div>
   );

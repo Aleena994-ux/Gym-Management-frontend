@@ -6,7 +6,6 @@ export default function Footer() {
     <footer className="bg-black text-gray-300 py-10 mt-0">
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
 
-        {/* Logo + About */}
         <div>
           <h2 className="flex items-center text-white text-xl font-semibold mb-3">
             <FaDumbbell className="text-red-900 mr-2" /> Fitora
@@ -17,7 +16,6 @@ export default function Footer() {
           </p>
         </div>
 
-        {/* Quick Links */}
         <div>
           <h3 className="text-white text-lg font-semibold mb-3">Quick Links</h3>
           <ul className="space-y-2 text-sm">
@@ -28,7 +26,6 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* Contact + Location */}
         <div>
           <h3 className="text-white text-lg font-semibold mb-3">Contact & Location</h3>
           

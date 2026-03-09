@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AdminSidebar from "../components/AdminSidebar";
 import { toast } from "react-toastify";
-import { updateProfileAPI } from "../../services/allAPI";
+import { updateProfileAPI, getAllUsersAPI, getAllTrainerAPI } from "../../services/allAPI";
 import SERVERURL from "../../services/serverURL";
 import { useNavigate } from "react-router-dom";
 
@@ -16,6 +16,10 @@ export default function AdminHome() {
   });
   const [existingProfile, setExistingProfile] = useState("");
   const [preview, setPreview] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const [totalTrainers, setTotalTrainers] = useState(0);
+  const [activeMembers, setActiveMembers] = useState(0);
 
   const navigate = useNavigate();
 
@@ -44,7 +48,24 @@ export default function AdminHome() {
       profile: ""
     });
     setExistingProfile(admin.profile || "");
+
+    fetchStats(storedToken);
   }, [navigate]);
+
+  const fetchStats = async (token) => {
+    try {
+      const trainersRes = await getAllTrainerAPI({ Authorization: `Bearer ${token}` });
+      if (trainersRes.status === 200) setTotalTrainers(trainersRes.data.length);
+
+      const usersRes = await getAllUsersAPI({ Authorization: `Bearer ${token}` });
+      if (usersRes.status === 200) {
+        const activeCount = usersRes.data.filter(u => u.status === "active-member").length;
+        setActiveMembers(activeCount);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   const handleFile = (e) => {
     setAdminDetails({ ...adminDetails, profile: e.target.files[0] });
@@ -77,21 +98,14 @@ export default function AdminHome() {
       return;
     }
 
-    const reqHeader = {
-      Authorization: `Bearer ${token}`
-    };
-
+    const reqHeader = { Authorization: `Bearer ${token}` };
     const reqBody = new FormData();
     reqBody.append("username", username);
     reqBody.append("password", password);
     reqBody.append("bio", bio);
     reqBody.append("role", "admin");
-
-    if (preview) {
-      reqBody.append("profile", adminDetails.profile);
-    } else {
-      reqBody.append("profile", existingProfile);
-    }
+    if (preview) reqBody.append("profile", adminDetails.profile);
+    else reqBody.append("profile", existingProfile);
 
     const result = await updateProfileAPI(reqBody, reqHeader);
 
@@ -100,53 +114,68 @@ export default function AdminHome() {
       sessionStorage.setItem("existingUser", JSON.stringify(result.data));
       setExistingProfile(result.data.profile);
       setPreview("");
+      setModalOpen(false);
     } else {
       toast.error("Something went wrong");
     }
   };
 
   return (
-    <>
-      <div className="flex bg-black min-h-screen text-white">
-        <AdminSidebar />
+    <div className="flex bg-gray-900 min-h-screen text-white">
+      <AdminSidebar />
 
-        <main className="flex-1 p-10">
+      <main className="flex-1 p-8 md:p-10 lg:p-12 space-y-10">
+        <div className="rounded-2xl p-8 shadow-lg transform hover:scale-105 transition-transform duration-300 space-y-4">
+          <h2 className="text-3xl md:text-4xl font-extrabold">
+            Welcome Back, <span className="text-yellow-400">{adminDetails.username}</span> 👋
+          </h2>
+          <p className="text-gray-200 text-lg">Manage your profile and settings below.</p>
+        </div>
 
-          {/* Welcome */}
-          <div className="bg-gray-900 rounded-xl p-8 mb-10 border border-gray-800">
-            <h2 className="text-3xl font-bold">
-              Welcome Back, {adminDetails.username} 👋
-            </h2>
+
+<div className="md:flex md:justify-center md:gap-10 mt-6">
+  <div className="bg-blue-400 p-5 rounded-2xl shadow-md text-center w-65 md:w-110">
+    <p className="text-3xl font-bold">{totalTrainers}</p>
+    <p>Total Trainers</p>
+  </div>
+  <div className="bg-blue-400 p-5 rounded-2xl shadow-md text-center w-65 md:w-110">
+    <p className="text-3xl font-bold">{activeMembers}</p>
+    <p>Active Members</p>
+  </div>
+</div>
+
+
+        <div className="flex justify-center mt-10">
+          <div className="relative flex flex-col items-center p-8 rounded-2xl shadow-md bg-gray-800 w-full max-w-md">
+            <img
+              src={
+                existingProfile
+                  ? `${SERVERURL}/imguploads/${existingProfile}`
+                  : "https://cdn-icons-png.freepik.com/512/8608/8608769.png"
+              }
+              alt="admin"
+              className="w-40 h-40 rounded-full border-4 border-green-500 object-cover shadow-md"
+            />
+            <h3 className="text-2xl font-bold mt-4">{adminDetails.username}</h3>
+            <p className="text-gray-300 mt-2">{adminDetails.bio}</p>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="mt-4 bg-green-600 px-6 py-2 rounded-xl hover:bg-green-500 transition"
+            >
+              Update Profile
+            </button>
           </div>
+        </div>
 
-          {/* EDIT PROFILE */}
-          <div className="md:grid grid-cols-2 gap-10">
+        {/* Modal */}
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-lg relative">
+              <h2 className="text-2xl font-bold mb-4">Update Profile</h2>
 
-            {/* Profile Display */}
-            <div className="flex flex-col items-center bg-gray-900 p-8 rounded-xl border border-gray-800">
-              <img
-                src={
-                  existingProfile
-                    ? `${SERVERURL}/imguploads/${existingProfile}`
-                    : "https://cdn-icons-png.freepik.com/512/8608/8608769.png"
-                }
-                style={{ width: "160px", height: "160px", borderRadius: "50%" }}
-                alt="admin"
-              />
-              <h3 className="text-2xl mt-4">{adminDetails.username}</h3>
-              <p className="text-gray-400 mt-2">{adminDetails.bio}</p>
-            </div>
-
-            {/* Edit Form */}
-            <div className="bg-gray-900 p-8 rounded-xl border border-gray-800">
-              <div className="flex justify-center mb-6">
+              <div className="flex justify-center mb-4">
                 <label htmlFor="adminProfile">
-                  <input
-                    type="file"
-                    id="adminProfile"
-                    onChange={handleFile}
-                    hidden
-                  />
+                  <input type="file" id="adminProfile" onChange={handleFile} hidden />
                   <img
                     src={
                       preview
@@ -155,7 +184,7 @@ export default function AdminHome() {
                         ? `${SERVERURL}/imguploads/${existingProfile}`
                         : "https://cdn-icons-png.freepik.com/512/8608/8608769.png"
                     }
-                    style={{ width: "120px", height: "120px", borderRadius: "50%" }}
+                    className="w-32 h-32 rounded-full border-2 border-green-500 object-cover cursor-pointer hover:opacity-80 transition"
                     alt="edit"
                   />
                 </label>
@@ -167,59 +196,59 @@ export default function AdminHome() {
                   setAdminDetails({ ...adminDetails, username: e.target.value })
                 }
                 placeholder="Username"
-                className="w-full p-2 mb-3 rounded text-black"
+                className="w-full p-3 rounded-xl bg-gray-700 text-white mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
 
               <input
                 value={adminDetails.bio}
-                onChange={(e) =>
-                  setAdminDetails({ ...adminDetails, bio: e.target.value })
-                }
+                onChange={(e) => setAdminDetails({ ...adminDetails, bio: e.target.value })}
                 placeholder="Bio"
-                className="w-full p-2 mb-3 rounded text-black"
+                className="w-full p-3 rounded-xl bg-gray-700 text-white mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
 
               <input
                 type="password"
                 value={adminDetails.password}
-                onChange={(e) =>
-                  setAdminDetails({ ...adminDetails, password: e.target.value })
-                }
+                onChange={(e) => setAdminDetails({ ...adminDetails, password: e.target.value })}
                 placeholder="Password"
-                className="w-full p-2 mb-3 rounded text-black"
+                className="w-full p-3 rounded-xl bg-gray-700 text-white mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
 
               <input
                 type="password"
                 value={adminDetails.confirmPassword}
                 onChange={(e) =>
-                  setAdminDetails({
-                    ...adminDetails,
-                    confirmPassword: e.target.value
-                  })
+                  setAdminDetails({ ...adminDetails, confirmPassword: e.target.value })
                 }
                 placeholder="Confirm Password"
-                className="w-full p-2 mb-6 rounded text-black"
+                className="w-full p-3 rounded-xl bg-gray-700 text-white mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
 
               <div className="flex gap-4">
                 <button
                   onClick={handleReset}
-                  className="w-1/2 bg-amber-600 p-3 rounded"
+                  className="flex-1 bg-amber-600 p-3 rounded-xl hover:bg-amber-500 transition"
                 >
                   Reset
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="w-1/2 bg-green-600 p-3 rounded"
+                  className="flex-1 bg-green-600 p-3 rounded-xl hover:bg-green-500 transition"
                 >
                   Update
                 </button>
               </div>
+
+              <button
+                onClick={() => setModalOpen(false)}
+                className="absolute top-4 right-4 text-white text-xl font-bold hover:text-red-500"
+              >
+                &times;
+              </button>
             </div>
           </div>
-        </main>
-      </div>
-    </>
+        )}
+      </main>
+    </div>
   );
 }

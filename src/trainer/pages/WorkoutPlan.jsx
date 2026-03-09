@@ -12,21 +12,25 @@ function WorkoutPlan() {
   const [users, setUsers] = useState([]);
   const [plans, setPlans] = useState([]);
   const [viewAssign, setViewAssign] = useState(true);
+  const [expanded, setExpanded] = useState({});
+
+  const [searchName, setSearchName] = useState("");
+  const [searchDate, setSearchDate] = useState("");
 
   const [planDetails, setPlanDetails] = useState({
     userId: "",
     planType: "",
     workoutDetails: "",
     dietDetails: "",
+    assignedDate: "",
   });
 
-  // Get token from session
   useEffect(() => {
     const storedToken = sessionStorage.getItem("token");
     if (storedToken) setToken(storedToken);
   }, []);
 
-  // Fetch all active users assigned to this trainer
+  /* ---------------- FETCH USERS (ACTIVE ONLY) ---------------- */
   const getAllUsers = async () => {
     if (!token) return;
 
@@ -36,14 +40,22 @@ function WorkoutPlan() {
       });
 
       if (result.status === 200) {
-        setUsers(result.data); // active members only already filtered on backend
+        const activeUsers = result.data.filter((user) => {
+          const isExpired =
+            user.membershipStatus === "expired" ||
+            (user.membershipEndDate &&
+              new Date(user.membershipEndDate) < new Date());
+          return !isExpired;
+        });
+
+        setUsers(activeUsers);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to fetch users");
     }
   };
 
-  // Fetch all workout plans (plain, no populate)
+  /* ---------------- FETCH PLANS ---------------- */
   const getAllPlans = async () => {
     if (!token) return;
 
@@ -53,26 +65,49 @@ function WorkoutPlan() {
       });
 
       if (result.status === 200) {
-        setPlans(result.data);
+        const filteredPlans = result.data.filter((plan) =>
+          users.some((u) => u._id === plan.userId)
+        );
+        setPlans(filteredPlans);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to fetch workout plans");
     }
   };
 
   useEffect(() => {
-    if (token) {
-      getAllUsers();
-      getAllPlans();
-    }
+    if (token) getAllUsers();
   }, [token]);
 
-  // Assign plan to user
-  const handleAssignPlan = async () => {
-    const { userId, planType, workoutDetails, dietDetails } = planDetails;
+  useEffect(() => {
+    if (token && users.length > 0) getAllPlans();
+  }, [token, users]);
 
-    if (!userId || !planType || !workoutDetails || !dietDetails) {
-      toast.info("Fill all fields");
+  /* ---------------- SHOW MORE TOGGLE ---------------- */
+  const toggleShowMore = (id, type) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [`${id}-${type}`]: !prev[`${id}-${type}`],
+    }));
+  };
+
+  /* ---------------- ASSIGN PLAN ---------------- */
+  const handleAssignPlan = async () => {
+    const { userId, planType, workoutDetails, dietDetails, assignedDate } =
+      planDetails;
+
+    if (!userId || !planType || !assignedDate) {
+      toast.info("Fill all required fields");
+      return;
+    }
+
+    if (planType !== "Diet" && !workoutDetails) {
+      toast.info("Enter workout details");
+      return;
+    }
+
+    if (planType !== "Workout" && !dietDetails) {
+      toast.info("Enter diet details");
       return;
     }
 
@@ -88,35 +123,50 @@ function WorkoutPlan() {
           planType: "",
           workoutDetails: "",
           dietDetails: "",
+          assignedDate: "",
         });
-        getAllPlans(); // refresh plans
-      } else {
-        toast.error("Failed to assign plan");
+        getAllPlans();
       }
-    } catch (error) {
+    } catch {
       toast.error("Error assigning plan");
     }
   };
 
+  const filteredPlans = plans.filter((plan) => {
+    const user = users.find((u) => u._id === plan.userId);
+
+    const matchName = searchName
+      ? user?.username
+          ?.toLowerCase()
+          .includes(searchName.toLowerCase())
+      : true;
+
+    const matchDate = searchDate
+      ? new Date(plan.assignedDate).toISOString().slice(0, 10) === searchDate
+      : true;
+
+    return matchName && matchDate;
+  });
+
   return (
-    <div className="flex bg-black min-h-screen text-white">
+    <div className="flex bg-gray-100 min-h-screen text-gray-900">
       <TrainerSidebar />
 
       <main className="flex-1 p-10">
-        {/* Tabs */}
         <div className="flex gap-6 mb-8">
           <button
             onClick={() => setViewAssign(true)}
-            className={`px-6 py-2 rounded ${
-              viewAssign ? "bg-red-700" : "bg-gray-700"
+            className={`px-6 py-2 rounded font-semibold ${
+              viewAssign ? "bg-red-700 text-white" : "bg-gray-300"
             }`}
           >
             Assign Plan
           </button>
+
           <button
             onClick={() => setViewAssign(false)}
-            className={`px-6 py-2 rounded ${
-              !viewAssign ? "bg-red-700" : "bg-gray-700"
+            className={`px-6 py-2 rounded font-semibold ${
+              !viewAssign ? "bg-red-700 text-white" : "bg-gray-300"
             }`}
           >
             View Plans
@@ -125,7 +175,7 @@ function WorkoutPlan() {
 
         {/* ASSIGN PLAN */}
         {viewAssign && (
-          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+          <div className="bg-white p-6 rounded-xl shadow border">
             <h2 className="text-2xl font-bold mb-6">Assign Workout Plan</h2>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -134,7 +184,7 @@ function WorkoutPlan() {
                 onChange={(e) =>
                   setPlanDetails({ ...planDetails, userId: e.target.value })
                 }
-                className="p-3 bg-black border border-gray-700 rounded"
+                className="p-3 border rounded bg-gray-50"
               >
                 <option value="">Select User</option>
                 {users.map((u) => (
@@ -147,9 +197,14 @@ function WorkoutPlan() {
               <select
                 value={planDetails.planType}
                 onChange={(e) =>
-                  setPlanDetails({ ...planDetails, planType: e.target.value })
+                  setPlanDetails({
+                    ...planDetails,
+                    planType: e.target.value,
+                    workoutDetails: "",
+                    dietDetails: "",
+                  })
                 }
-                className="p-3 bg-black border border-gray-700 rounded"
+                className="p-3 border rounded bg-gray-50"
               >
                 <option value="">Plan Type</option>
                 <option value="Workout">Workout</option>
@@ -157,35 +212,53 @@ function WorkoutPlan() {
                 <option value="Workout + Diet">Workout + Diet</option>
               </select>
 
-              <textarea
-                placeholder="Workout Details"
-                value={planDetails.workoutDetails}
+              <input
+                type="date"
+                value={planDetails.assignedDate}
                 onChange={(e) =>
                   setPlanDetails({
                     ...planDetails,
-                    workoutDetails: e.target.value,
+                    assignedDate: e.target.value,
                   })
                 }
-                className="p-3 bg-black border border-gray-700 rounded col-span-2"
+                className="p-3 border rounded bg-gray-50"
               />
 
-              <textarea
-                placeholder="Diet Details"
-                value={planDetails.dietDetails}
-                onChange={(e) =>
-                  setPlanDetails({
-                    ...planDetails,
-                    dietDetails: e.target.value,
-                  })
-                }
-                className="p-3 bg-black border border-gray-700 rounded col-span-2"
-              />
+              {planDetails.planType !== "Diet" &&
+                planDetails.planType !== "" && (
+                  <textarea
+                    placeholder="Workout Details"
+                    value={planDetails.workoutDetails}
+                    onChange={(e) =>
+                      setPlanDetails({
+                        ...planDetails,
+                        workoutDetails: e.target.value,
+                      })
+                    }
+                    className="p-3 border rounded col-span-2 bg-gray-50"
+                  />
+                )}
+
+              {planDetails.planType !== "Workout" &&
+                planDetails.planType !== "" && (
+                  <textarea
+                    placeholder="Diet Details"
+                    value={planDetails.dietDetails}
+                    onChange={(e) =>
+                      setPlanDetails({
+                        ...planDetails,
+                        dietDetails: e.target.value,
+                      })
+                    }
+                    className="p-3 border rounded col-span-2 bg-gray-50"
+                  />
+                )}
             </div>
 
             <div className="flex justify-end mt-6">
               <button
                 onClick={handleAssignPlan}
-                className="bg-green-700 px-6 py-3 rounded hover:bg-green-600"
+                className="bg-green-700 px-6 py-3 rounded text-white font-semibold hover:bg-green-600"
               >
                 Assign Plan
               </button>
@@ -195,28 +268,88 @@ function WorkoutPlan() {
 
         {/* VIEW PLANS */}
         {!viewAssign && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {plans.length > 0 ? (
-              plans.map((plan) => {
-                const user = users.find((u) => u._id === plan.userId); // match userId
-                return (
-                  <div
-                    key={plan._id}
-                    className="bg-gray-900 p-5 rounded-lg border border-gray-800"
-                  >
-                    <h3 className="text-xl font-bold">
-                      {user?.username || "Unknown"}
-                    </h3>
-                    <p className="text-gray-400">Plan: {plan.planType}</p>
-                    <p className="mt-2">{plan.workoutDetails}</p>
-                    <p className="mt-2">{plan.dietDetails}</p>
-                  </div>
-                );
-              })
-            ) : (
-              <p>No workout plans found</p>
-            )}
-          </div>
+          <>
+            <div className="flex gap-4 mb-4">
+              <input
+                type="text"
+                placeholder="Search by username"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="p-2 border rounded w-64"
+              />
+
+              <input
+                type="date"
+                value={searchDate}
+                onChange={(e) => setSearchDate(e.target.value)}
+                className="p-2 border rounded"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border rounded-lg shadow">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3">User</th>
+                    <th className="px-6 py-3">Plan Type</th>
+                    <th className="px-6 py-3">Assigned Date</th>
+                    <th className="px-6 py-3">Workout Details</th>
+                    <th className="px-6 py-3">Diet Details</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredPlans.map((plan) => {
+                    const user = users.find((u) => u._id === plan.userId);
+                    const showWorkout = expanded[`${plan._id}-workout`];
+                    const showDiet = expanded[`${plan._id}-diet`];
+
+                    return (
+                      <tr key={plan._id} className="border-t hover:bg-gray-50">
+                        <td className="px-6 py-4">{user?.username}</td>
+                        <td className="px-6 py-4">{plan.planType}</td>
+                        <td className="px-6 py-4">
+                          {new Date(plan.assignedDate).toLocaleDateString()}
+                        </td>
+
+                        <td className="px-6 py-4 max-w-xs">
+                          <p className={showWorkout ? "" : "line-clamp-2"}>
+                            {plan.workoutDetails}
+                          </p>
+                          {plan.workoutDetails?.length > 80 && (
+                            <button
+                              onClick={() =>
+                                toggleShowMore(plan._id, "workout")
+                              }
+                              className="text-blue-600 text-sm mt-1"
+                            >
+                              {showWorkout ? "Show Less" : "Show More"}
+                            </button>
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 max-w-xs">
+                          <p className={showDiet ? "" : "line-clamp-2"}>
+                            {plan.dietDetails}
+                          </p>
+                          {plan.dietDetails?.length > 80 && (
+                            <button
+                              onClick={() =>
+                                toggleShowMore(plan._id, "diet")
+                              }
+                              className="text-blue-600 text-sm mt-1"
+                            >
+                              {showDiet ? "Show Less" : "Show More"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </main>
     </div>

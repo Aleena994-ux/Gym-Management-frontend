@@ -1,75 +1,150 @@
-import React, { useState, useEffect } from 'react';
-import AdminSidebar from '../components/AdminSidebar';
-import { toast } from 'react-toastify';
-import { getAllAttendancesAPI, markAttendanceAPI, getAllUsersAPI } from '../../services/allAPI';
+import React, { useState, useEffect } from "react";
+import AdminSidebar from "../components/AdminSidebar";
+import { toast } from "react-toastify";
+import { FaEdit, FaCheck } from "react-icons/fa";
+import {
+  getAllAttendancesAPI,
+  markAttendanceAPI,
+  getAllUsersAPI,
+} from "../../services/allAPI";
 
 function AdminAttendance() {
   const [token, setToken] = useState("");
   const [allAttendances, setAllAttendances] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [searchName, setSearchName] = useState("");
+  const [searchDate, setSearchDate] = useState("");
+
   const [attendanceDetails, setAttendanceDetails] = useState({
     userId: "",
     date: "",
-    status: "present"
+    status: "present",
   });
 
-  // Get all attendances (with population)
+  const [editId, setEditId] = useState(null);
+  const [editStatus, setEditStatus] = useState("present");
+  const [editDate, setEditDate] = useState("");
+
+  /* ---------------- FETCH ATTENDANCES ---------------- */
   const getAllAttendances = async () => {
     try {
-      const reqHeader = { "Authorization": `Bearer ${token}` };
+      const reqHeader = { Authorization: `Bearer ${token}` };
       const result = await getAllAttendancesAPI(reqHeader);
-      console.log(result);
+
       if (result.status === 200) {
-        setAllAttendances(result.data);
+        const filtered = result.data.filter((att) => {
+          const user = att.userId;
+          if (!user) return false;
+
+          const isExpired =
+            user.membershipStatus === "expired" ||
+            (user.membershipEndDate &&
+              new Date(user.membershipEndDate) < new Date());
+
+          return user.status === "active-member" && !isExpired;
+        });
+
+        setAllAttendances(filtered);
       }
-    } catch (error) {
-      console.log(error);
+    } catch {
       toast.error("Failed to load attendances");
     }
   };
 
-  // Get all users
+  /* ---------------- FETCH USERS ---------------- */
   const getAllUsers = async () => {
     try {
-      const reqHeader = { "Authorization": `Bearer ${token}` };
+      const reqHeader = { Authorization: `Bearer ${token}` };
       const result = await getAllUsersAPI(reqHeader);
+
       if (result.status === 200) {
-        setAllUsers(result.data);
+        const filteredUsers = result.data.filter((user) => {
+          const isExpired =
+            user.membershipStatus === "expired" ||
+            (user.membershipEndDate &&
+              new Date(user.membershipEndDate) < new Date());
+
+          return (
+            user.role !== "admin" &&
+            user.status === "active-member" &&
+            !isExpired
+          );
+        });
+
+        setAllUsers(filteredUsers);
       }
     } catch (error) {
       console.log(error);
     }
   };
 
-  // Mark attendance
+  /* ---------------- MARK ATTENDANCE ---------------- */
   const handleMarkAttendance = async () => {
     const { userId, date, status } = attendanceDetails;
-    if (!userId || !date || !status) {
+    if (!userId || !date) {
       toast.info("Fill the form completely");
       return;
     }
 
     try {
-      const reqHeader = { "Authorization": `Bearer ${token}` };
+      const reqHeader = { Authorization: `Bearer ${token}` };
       const result = await markAttendanceAPI(attendanceDetails, reqHeader);
-      console.log(result);
+
       if (result.status === 200) {
-        toast.success("Attendance marked successfully!");
+        toast.success("Attendance marked");
         setAttendanceDetails({ userId: "", date: "", status: "present" });
         getAllAttendances();
-      } else {
-        toast.error(result?.data || "Error marking attendance");
       }
-    } catch (error) {
-      console.log(error);
+    } catch {
       toast.error("Something went wrong");
     }
   };
 
-  useEffect(() => {
-    if (sessionStorage.getItem("token")) {
-      setToken(sessionStorage.getItem("token"));
+  /* ---------------- UPDATE ATTENDANCE ---------------- */
+  const handleUpdateAttendance = async (attendance) => {
+    try {
+      const reqHeader = { Authorization: `Bearer ${token}` };
+      const payload = {
+        userId: attendance.userId._id,
+        date: editDate,
+        status: editStatus,
+      };
+
+      const result = await markAttendanceAPI(payload, reqHeader);
+      if (result.status === 200) {
+        toast.success("Attendance updated");
+
+        setAllAttendances((prev) =>
+          prev.map((att) =>
+            att._id === attendance._id
+              ? { ...att, date: editDate, status: editStatus }
+              : att
+          )
+        );
+
+        setEditId(null);
+      }
+    } catch {
+      toast.error("Update failed");
     }
+  };
+
+  /* ---------------- SEARCH FILTER ---------------- */
+  const filteredAttendances = allAttendances.filter((att) => {
+    const matchName = att.userId?.username
+      .toLowerCase()
+      .includes(searchName.toLowerCase());
+
+    const matchDate = searchDate
+      ? new Date(att.date).toISOString().slice(0, 10) === searchDate
+      : true;
+
+    return matchName && matchDate;
+  });
+
+  useEffect(() => {
+    const t = sessionStorage.getItem("token");
+    if (t) setToken(t);
   }, []);
 
   useEffect(() => {
@@ -80,107 +155,184 @@ function AdminAttendance() {
   }, [token]);
 
   return (
-    <div className="flex bg-black min-h-screen text-white">
+    <div className="flex min-h-screen bg-gray-100">
       <AdminSidebar />
-      <main className="flex-1 p-10">
-        <h1 className="text-center text-3xl font-bold mb-8">Admin Attendance</h1>
 
-        {/* Mark Attendance Form */}
-        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-10">
-          <h2 className="text-2xl font-bold mb-6">Mark Attendance</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-gray-300 mb-2">User</label>
+      <div className="flex-1">
+        <div className="px-8 py-4 bg-white shadow">
+          <h1 className="text-xl font-semibold">TAKE ATTENDANCE</h1>
+        </div>
+
+        <div className="p-8">
+          {/* MARK ATTENDANCE */}
+          <div className="bg-white p-6 rounded-xl shadow mb-8">
+            <h2 className="text-xl font-bold mb-4">Mark Attendance</h2>
+
+            <div className="grid md:grid-cols-3 gap-4">
               <select
                 value={attendanceDetails.userId}
                 onChange={(e) =>
-                  setAttendanceDetails({ ...attendanceDetails, userId: e.target.value })
+                  setAttendanceDetails({
+                    ...attendanceDetails,
+                    userId: e.target.value,
+                  })
                 }
-                className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                className="p-3 border rounded"
               >
                 <option value="">Select User</option>
-                {allUsers.map((user) => (
-                  <option key={user._id} value={user._id}>
-                    {user.username}
+                {allUsers.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.username}
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-gray-300 mb-2">Date</label>
+
               <input
                 type="date"
                 value={attendanceDetails.date}
                 onChange={(e) =>
-                  setAttendanceDetails({ ...attendanceDetails, date: e.target.value })
+                  setAttendanceDetails({
+                    ...attendanceDetails,
+                    date: e.target.value,
+                  })
                 }
-                className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                className="p-3 border rounded"
               />
-            </div>
-            <div>
-              <label className="block text-gray-300 mb-2">Status</label>
+
               <select
                 value={attendanceDetails.status}
                 onChange={(e) =>
-                  setAttendanceDetails({ ...attendanceDetails, status: e.target.value })
+                  setAttendanceDetails({
+                    ...attendanceDetails,
+                    status: e.target.value,
+                  })
                 }
-                className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                className="p-3 border rounded"
               >
                 <option value="present">Present</option>
                 <option value="absent">Absent</option>
               </select>
             </div>
-          </div>
-          <div className="flex justify-end gap-4 mt-6">
-            <button
-              onClick={handleMarkAttendance}
-              className="bg-green-700 text-white rounded px-5 py-3 hover:border hover:border-green-700 hover:text-green-700 hover:bg-white"
-            >
-              Mark Attendance
-            </button>
-          </div>
-        </div>
 
-        {/* Attendance Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto bg-gray-900 rounded-lg border border-gray-800">
-            <thead>
-              <tr className="bg-gray-800 text-gray-300">
-                <th className="px-4 py-3 text-left">User</th>
-                <th className="px-4 py-3 text-left">Date</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Marked By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allAttendances?.length > 0 ? (
-                allAttendances.map((attendance, index) => (
-                  <tr key={attendance._id || index} className="border-t border-gray-700 hover:bg-gray-800">
-                    <td className="px-4 py-3 text-white">
-                      {attendance?.userId?.username || "Unknown"}
+            <div className="text-right mt-4">
+              <button
+                onClick={handleMarkAttendance}
+                className="bg-blue-600 text-white px-6 py-2 rounded"
+              >
+                Mark
+              </button>
+            </div>
+          </div>
+
+          {/* SEARCH */}
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <h3 className="text-sm font-medium mb-1">Search by Username</h3>
+              <input
+                type="text"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="p-3 border rounded w-full"
+              />
+            </div>
+
+            <div className="flex-1">
+              <h3 className="text-sm font-medium mb-1">Search by Date</h3>
+              <input
+                type="date"
+                value={searchDate}
+                onChange={(e) => setSearchDate(e.target.value)}
+                className="p-3 border rounded w-full"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-blue-600 text-white">
+                <tr>
+                  <th className="p-3">User</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredAttendances.map((att) => (
+                  <tr key={att._id} className="border-b">
+                    <td className="p-3">{att.userId?.username}</td>
+
+                    <td className="p-3">
+                      {editId === att._id ? (
+                        <input
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                          className="border p-1 rounded w-full"
+                        />
+                      ) : (
+                        new Date(att.date).toLocaleDateString()
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
-                      {attendance?.date ? new Date(attendance.date).toLocaleDateString() : "Invalid Date"}
+
+                    <td className="p-3">
+                      {editId === att._id ? (
+                        <select
+                          value={editStatus}
+                          onChange={(e) => setEditStatus(e.target.value)}
+                          className="border p-1 rounded w-full"
+                        >
+                          <option value="present">Present</option>
+                          <option value="absent">Absent</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`font-semibold ${
+                            att.status === "present"
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {att.status}
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">
-                      {attendance?.status || "N/A"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-300">
-                      {attendance?.markedBy || "N/A"}
+
+                    <td className="p-3">
+                      {editId === att._id ? (
+                        <FaCheck
+                          className="text-green-600 cursor-pointer"
+                          onClick={() => handleUpdateAttendance(att)}
+                        />
+                      ) : (
+                        <FaEdit
+                          className="text-blue-600 cursor-pointer"
+                          onClick={() => {
+                            setEditId(att._id);
+                            setEditStatus(att.status);
+                            setEditDate(
+                              new Date(att.date).toISOString().slice(0, 10)
+                            );
+                          }}
+                        />
+                      )}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="px-4 py-3 text-center text-red-700 font-semibold">
-                    No attendances available...
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                ))}
+
+                {filteredAttendances.length === 0 && (
+                  <tr>
+                    <td colSpan="4" className="text-center p-4 text-red-500">
+                      No records found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaSignOutAlt } from "react-icons/fa";
+import { FaSignOutAlt, FaHome, FaDumbbell, FaUserCheck, FaRunning } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 function UserSidebar() {
@@ -10,8 +10,7 @@ function UserSidebar() {
     // Remove user data
     sessionStorage.removeItem("existingUser");
     sessionStorage.removeItem("token");
-    sessionStorage.clear();   
-
+    sessionStorage.clear();
 
     // Toast success message
     toast.success("Logged out successfully!", {
@@ -28,35 +27,44 @@ function UserSidebar() {
   const requestApproved = true;
 
   return (
-    <div className="w-64 bg-gray-900 min-h-screen p-6 border-r border-gray-800 flex flex-col justify-between">
+    <div className="w-64 min-h-screen flex flex-col justify-between bg-[#1f2a44] text-gray-300 shadow-xl">
       <div>
-        <h2 className="text-2xl font-bold text-white mb-8">User Panel</h2>
+        <div className="px-6 py-6 border-b border-white/10 flex items-center gap-3">
+          <FaDumbbell className="text-blue-400 text-2xl" />
+          <h2 className="text-xl font-bold text-white tracking-wide">User Panel</h2>
+        </div>
 
-        <nav className="flex flex-col gap-5 text-gray-300">
-          <Link to="/user-home" className="hover:text-red-400">
-            User Home
-          </Link>
-
-          <Link to="/user-attendances" className="hover:text-red-400">
-           Attendance
-          </Link>
-
-          <Link to="/user-workoutplan" className="hover:text-red-400">
-            My WorkoutPlan
-          </Link>
+        <nav className="mt-6 space-y-1">
+          <SidebarLink to="/user-home" icon={<FaHome />} label="User Home" />
+          <SidebarLink to="/user-attendances" icon={<FaUserCheck />} label="Attendance" />
+          <SidebarLink to="/user-workoutplan" icon={<FaRunning />} label="My WorkoutPlan" />
+          <div className="px-6 py-3">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-md hover:bg-white/10 transition text-gray-300"
+            >
+              <FaSignOutAlt />
+              <span>Logout</span>
+            </button>
+          </div>
         </nav>
       </div>
 
-      {/* Logout Button */}
-      <div>
-        <button
-          className="flex items-center gap-2 w-full text-gray-300 hover:text-red-400 cursor-pointer"
-          onClick={handleLogout}
-        >
-          <FaSignOutAlt /> Logout
-        </button>
-      </div>
     </div>
+  );
+}
+
+function SidebarLink({ to, icon, label }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 px-6 py-3 relative hover:bg-white/10 transition group"
+    >
+      <span className="absolute left-0 top-0 h-full w-1 bg-blue-500 opacity-0 group-hover:opacity-100"></span>
+
+      <span className="text-lg">{icon}</span>
+      <span className="text-sm font-medium">{label}</span>
+    </Link>
   );
 }
 

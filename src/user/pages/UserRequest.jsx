@@ -13,31 +13,30 @@ function UserRequest() {
     timeSlot: "",
     bodyTypeGoal: "",
     preferredTrainer: ""
- 
   });
 
   const [allTrainers, setAllTrainers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔐 Check login & load trainers
+  // Check login & load trainers
   useEffect(() => {
     const token = sessionStorage.getItem("token");
 
     if (!token) {
       toast.info("Please login to send enquiry");
       navigate("/login");
-      return; 
-
-    } else {
-      const user = JSON.parse(sessionStorage.getItem("existingUser"));
-      if (user) {
-        setRequestDetails(prev => ({
-          ...prev,
-          userName: user.username
-        }));
-      }
-      getAllTrainers();
+      return;
     }
+
+    const user = JSON.parse(sessionStorage.getItem("existingUser"));
+    if (user) {
+      setRequestDetails((prev) => ({
+        ...prev,
+        userName: user.username
+      }));
+    }
+
+    getAllTrainers();
   }, []);
 
   // Fetch all trainers
@@ -59,9 +58,9 @@ function UserRequest() {
 
   // Submit enquiry
   const handleSubmitRequest = async () => {
-    const { timeSlot, bodyTypeGoal, preferredTrainer} = requestDetails;
+    const { timeSlot, bodyTypeGoal, preferredTrainer } = requestDetails;
 
-    if (!timeSlot || !bodyTypeGoal || !preferredTrainer ) {
+    if (!timeSlot || !bodyTypeGoal || !preferredTrainer) {
       toast.info("Fill the form completely");
       return;
     }
@@ -74,10 +73,15 @@ function UserRequest() {
 
     try {
       const result = await submitRequestAPI(requestDetails, reqHeader);
-
       if (result.status === 200) {
         toast.success("Enquiry sent. Please wait for admin approval");
-              } else {
+        setRequestDetails((prev) => ({
+          userName: prev.userName,
+          timeSlot: "",
+          bodyTypeGoal: "",
+          preferredTrainer: ""
+        }));
+      } else {
         toast.error("Something went wrong");
       }
     } catch (error) {
@@ -88,23 +92,25 @@ function UserRequest() {
   return (
     <>
       <Header />
-      <div className="flex bg-black min-h-screen text-white">
+
+      <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex">
         <main className="flex-1 p-10">
+          <h2 className="text-4xl font-bold mb-2">Membership Enquiry</h2>
+          <p className="text-gray-400 mb-10">
+            Fill the form and wait for admin approval
+          </p>
 
-          <h2 className="text-3xl font-bold mb-2">Membership Enquiry</h2>
-          <p className="text-gray-400 mb-8">Fill the form and wait for admin approval</p>
-
-          <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+          <div className="max-w-4xl mx-auto bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
             <form className="grid md:grid-cols-2 gap-6">
 
-              {/* Username (Auto-filled) */}
+              {/* Username */}
               <div>
                 <label className="block text-gray-300 mb-2">User Name</label>
                 <input
                   type="text"
                   value={requestDetails.userName}
                   disabled
-                  className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white cursor-not-allowed"
+                  className="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white cursor-not-allowed"
                 />
               </div>
 
@@ -114,9 +120,12 @@ function UserRequest() {
                 <select
                   value={requestDetails.timeSlot}
                   onChange={(e) =>
-                    setRequestDetails({ ...requestDetails, timeSlot: e.target.value })
+                    setRequestDetails({
+                      ...requestDetails,
+                      timeSlot: e.target.value
+                    })
                   }
-                  className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                  className="w-full p-3 rounded-lg bg-black/40 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-red-700"
                 >
                   <option value="">Select time slot</option>
                   <option value="6 AM - 7 AM">6 AM - 7 AM</option>
@@ -131,9 +140,12 @@ function UserRequest() {
                 <select
                   value={requestDetails.bodyTypeGoal}
                   onChange={(e) =>
-                    setRequestDetails({ ...requestDetails, bodyTypeGoal: e.target.value })
+                    setRequestDetails({
+                      ...requestDetails,
+                      bodyTypeGoal: e.target.value
+                    })
                   }
-                  className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                  className="w-full p-3 rounded-lg bg-black/40 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-red-700"
                 >
                   <option value="">Select goal</option>
                   <option value="Fat Loss">Fat Loss</option>
@@ -142,42 +154,50 @@ function UserRequest() {
                 </select>
               </div>
 
-              {/* Trainer */}
+              {/* Preferred Trainer */}
               <div>
-                <label className="block text-gray-300 mb-2">Preferred Trainer</label>
+                <label className="block text-gray-300 mb-2">
+                  Preferred Trainer
+                </label>
                 <select
                   value={requestDetails.preferredTrainer}
                   onChange={(e) =>
-                    setRequestDetails({ ...requestDetails, preferredTrainer: e.target.value })
+                    setRequestDetails({
+                      ...requestDetails,
+                      preferredTrainer: e.target.value
+                    })
                   }
-                  className="w-full p-3 bg-black border border-gray-700 rounded-lg text-white"
+                  className="w-full p-3 rounded-lg bg-black/40 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-red-700"
                 >
                   <option value="">Select trainer</option>
                   {loading ? (
                     <option>Loading...</option>
                   ) : (
-                    allTrainers.map(trainer => (
+                    allTrainers.map((trainer) => (
                       <option key={trainer._id} value={trainer._id}>
-                        {trainer.name}
+                        {trainer.name} ({trainer.specialization})
                       </option>
                     ))
                   )}
                 </select>
               </div>
-
-
             </form>
 
-            <button
-              onClick={handleSubmitRequest}
-              className="mt-6 bg-red-800 px-8 py-3 rounded-lg font-semibold hover:bg-red-900"
-            >
-              Send Enquiry
-            </button>
+            <div className="flex justify-end">
+              <button
+                onClick={handleSubmitRequest}
+                className="mt-8 px-10 py-3 rounded-lg font-semibold 
+                           bg-gradient-to-r from-red-800 to-red-600 
+                           hover:from-red-900 hover:to-red-700 
+                           transition shadow-lg"
+              >
+                Send Enquiry
+              </button>
+            </div>
           </div>
-
         </main>
       </div>
+
       <Footer />
     </>
   );

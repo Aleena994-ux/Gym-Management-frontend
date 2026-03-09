@@ -14,8 +14,10 @@ function AdminUser() {
     username: "",
     email: "",
     password: "",
-    role: "user",          // 🔒 fixed role
-    assignedTrainer: ""
+    role: "user",
+    assignedTrainer: "",
+    membershipDuration: "",
+    membershipStartDate: ""
   });
 
   const [token, setToken] = useState("");
@@ -24,20 +26,28 @@ function AdminUser() {
   const [activeTab, setActiveTab] = useState("add");
   const [viewSubTab, setViewSubTab] = useState("registered");
 
-  // 🔄 Reset form
   const reset = () => {
     setUserDetails({
       username: "",
       email: "",
       password: "",
       role: "user",
-      assignedTrainer: ""
+      assignedTrainer: "",
+      membershipDuration: "",
+      membershipStartDate: ""
     });
   };
 
-  // ➕ Add user
   const handleAddUser = async () => {
-    const { username, email, password, role, assignedTrainer } = userDetails;
+    const {
+      username,
+      email,
+      password,
+      role,
+      assignedTrainer,
+      membershipDuration,
+      membershipStartDate
+    } = userDetails;
 
     if (!username || !email || !password) {
       toast.info("Fill the form completely");
@@ -46,7 +56,15 @@ function AdminUser() {
 
     try {
       const result = await addUserAPI(
-        { username, email, password, role, assignedTrainer },
+        {
+          username,
+          email,
+          password,
+          role,
+          assignedTrainer,
+          membershipDuration,
+          membershipStartDate
+        },
         { Authorization: `Bearer ${token}` }
       );
 
@@ -54,61 +72,71 @@ function AdminUser() {
         toast.success("User added successfully");
         reset();
         getAllUsers();
-      } else {
-        toast.error("Error adding user");
-      }
-    } catch (error) {
+      } else toast.error("Error adding user");
+    } catch {
       toast.error("Something went wrong");
     }
   };
 
-  // 📥 Get all users
   const getAllUsers = async () => {
     try {
       const result = await getAllUsersAPI({
         Authorization: `Bearer ${token}`
       });
-
-      if (result.status === 200) {
-        setAllUsers(result.data);
-      }
-    } catch (error) {
+      if (result.status === 200) setAllUsers(result.data);
+    } catch {
       toast.error("Failed to load users");
     }
   };
 
-  // 🧑‍🏫 Get all trainers
   const getAllTrainers = async () => {
     try {
       const result = await getAllTrainerAPI({
         Authorization: `Bearer ${token}`
       });
-
-      if (result.status === 200) {
-        setAllTrainers(result.data);
-      }
+      if (result.status === 200) setAllTrainers(result.data);
     } catch (error) {
       console.log(error);
     }
   };
 
-  // ❌ Delete user
-  const handleDeleteUser = async (id) => {
-    try {
-      const result = await deleteUserAPI(id, {
-        Authorization: `Bearer ${token}`
-      });
-
-      if (result.status === 200) {
-        toast.success("User deleted");
-        getAllUsers();
-      }
-    } catch (error) {
-      toast.error("Delete failed");
-    }
+  const handleDeleteUser = (id) => {
+    toast.warn(
+      <div>
+        <p>Are you sure you want to delete this user?</p>
+        <div className="flex justify-end gap-3 mt-3">
+          <button
+            onClick={async () => {
+              try {
+                const result = await deleteUserAPI(id, {
+                  Authorization: `Bearer ${token}`
+                });
+                if (result.status === 200) {
+                  toast.dismiss();
+                  toast.success("User deleted successfully");
+                  getAllUsers();
+                }
+              } catch {
+                toast.dismiss();
+                toast.error("Delete failed");
+              }
+            }}
+            className="bg-red-600 px-3 py-1 rounded"
+          >
+            Yes
+          </button>
+          <button
+            onClick={() => toast.dismiss()}
+            className="bg-gray-600 px-3 py-1 rounded"
+          >
+            No
+          </button>
+        </div>
+      </div>,
+      { autoClose: false }
+    );
   };
 
-  // 🔍 Filters
   const getUsersByStatus = (status) =>
     allUsers.filter((user) => user.status === status);
 
@@ -116,14 +144,24 @@ function AdminUser() {
     getUsersByStatus("registered").filter((u) => u.role !== "admin");
 
   const getActiveMembers = () =>
-    getUsersByStatus("active-member");
+    getUsersByStatus("active-member").filter(
+      (u) => !u.membershipEndDate || new Date(u.membershipEndDate) >= new Date()
+    );
+
+  const getExpiredMembers = () =>
+    allUsers.filter(
+      (u) =>
+        u.membershipEndDate &&
+        new Date(u.membershipEndDate) < new Date()
+    );
 
   const getTrainerDetails = (trainerId) => {
     const trainer = allTrainers.find((t) => t._id === trainerId);
-    return trainer ? `${trainer.name} (${trainer.specialization})` : "Not Assigned";
+    return trainer
+      ? `${trainer.name} (${trainer.specialization})`
+      : "Not Assigned";
   };
 
-  // 🔐 Load token
   useEffect(() => {
     const storedToken = sessionStorage.getItem("token");
     if (storedToken) setToken(storedToken);
@@ -137,16 +175,16 @@ function AdminUser() {
   }, [token]);
 
   return (
-    <div className="flex bg-black min-h-screen text-white">
+    <div className="flex bg-gray-100 min-h-screen text-gray-900">
       <AdminSidebar />
-
       <main className="flex-1 p-10">
-        {/* Tabs */}
         <div className="flex justify-center gap-10 mb-10">
           <p
             onClick={() => setActiveTab("add")}
             className={`cursor-pointer ${
-              activeTab === "add" ? "text-blue-500 border-b" : ""
+              activeTab === "add"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : ""
             }`}
           >
             Add User
@@ -154,94 +192,159 @@ function AdminUser() {
           <p
             onClick={() => setActiveTab("view")}
             className={`cursor-pointer ${
-              activeTab === "view" ? "text-blue-500 border-b" : ""
+              activeTab === "view"
+                ? "text-blue-500 border-b-2 border-blue-500"
+                : ""
             }`}
           >
             View User
           </p>
         </div>
 
-        {/* ➕ ADD USER */}
         {activeTab === "add" && (
-          <>
+          <div className="bg-white p-6 rounded-xl shadow border">
             <h2 className="text-3xl font-bold mb-6">Add User</h2>
 
-            <div className="bg-gray-900 p-6 rounded-xl">
-              <div className="grid md:grid-cols-2 gap-6">
-                <input
-                  placeholder="Username"
-                  className="p-3 bg-black border rounded"
-                  value={userDetails.username}
-                  onChange={(e) =>
-                    setUserDetails({ ...userDetails, username: e.target.value })
-                  }
-                />
+            <div className="grid md:grid-cols-2 gap-6">
+              <input
+                placeholder="Username"
+                className="p-3 border rounded"
+                value={userDetails.username}
+                onChange={(e) =>
+                  setUserDetails({ ...userDetails, username: e.target.value })
+                }
+              />
 
-                <input
-                  placeholder="Email"
-                  className="p-3 bg-black border rounded"
-                  value={userDetails.email}
-                  onChange={(e) =>
-                    setUserDetails({ ...userDetails, email: e.target.value })
-                  }
-                />
+              <input
+                placeholder="Email"
+                className="p-3 border rounded"
+                value={userDetails.email}
+                onChange={(e) =>
+                  setUserDetails({ ...userDetails, email: e.target.value })
+                }
+              />
 
-                <input
-                  type="password"
-                  placeholder="Password"
-                  className="p-3 bg-black border rounded"
-                  value={userDetails.password}
-                  onChange={(e) =>
-                    setUserDetails({ ...userDetails, password: e.target.value })
-                  }
-                />
+              <input
+                type="password"
+                placeholder="Password"
+                className="p-3 border rounded"
+                value={userDetails.password}
+                onChange={(e) =>
+                  setUserDetails({ ...userDetails, password: e.target.value })
+                }
+              />
 
-                <select
-                  className="p-3 bg-black border rounded"
-                  value={userDetails.assignedTrainer}
+              <select
+                className="p-3 border rounded"
+                value={userDetails.assignedTrainer}
+                onChange={(e) =>
+                  setUserDetails({
+                    ...userDetails,
+                    assignedTrainer: e.target.value
+                  })
+                }
+              >
+                <option value="">Assign Trainer</option>
+                {allTrainers.map((trainer) => (
+                  <option key={trainer._id} value={trainer._id}>
+                    {trainer.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="p-3 border rounded"
+                value={userDetails.membershipDuration}
+                onChange={(e) =>
+                  setUserDetails({
+                    ...userDetails,
+                    membershipDuration: e.target.value
+                  })
+                }
+              >
+                <option value="">Select Membership Plan</option>
+                <option value="1">1 Month</option>
+                <option value="3">3 Months</option>
+                <option value="6">6 Months</option>
+              </select>
+
+              <div>
+                <p className="mb-1 text-sm font-semibold text-gray-700">
+                  *Membership Starting Date
+                </p>
+                <input
+                  type="date"
+                  className="p-3 border rounded w-full"
+                  value={userDetails.membershipStartDate}
                   onChange={(e) =>
                     setUserDetails({
                       ...userDetails,
-                      assignedTrainer: e.target.value
+                      membershipStartDate: e.target.value
                     })
                   }
-                >
-                  <option value="">Assign Trainer</option>
-                  {allTrainers.map((trainer) => (
-                    <option key={trainer._id} value={trainer._id}>
-                      {trainer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-4 mt-6">
-                <button onClick={reset} className="bg-yellow-700 px-5 py-2 rounded">
-                  Reset
-                </button>
-                <button
-                  onClick={handleAddUser}
-                  className="bg-green-700 px-5 py-2 rounded"
-                >
-                  Add User
-                </button>
+                />
               </div>
             </div>
-          </>
+
+            <div className="flex justify-end gap-4 mt-6">
+              <button
+                onClick={reset}
+                className="bg-amber-700 text-white px-5 py-2 rounded"
+              >
+                Reset
+              </button>
+              <button
+                onClick={handleAddUser}
+                className="bg-green-700 text-white px-5 py-2 rounded"
+              >
+                Add User
+              </button>
+            </div>
+          </div>
         )}
 
-        {/* 👁 VIEW USERS */}
         {activeTab === "view" && (
           <>
-            <div className="flex justify-center gap-10 mb-8">
-              <p onClick={() => setViewSubTab("registered")} className="cursor-pointer">
+            <div className="flex justify-center gap-6 mb-8">
+              <p
+                onClick={() => setViewSubTab("registered")}
+                className={`cursor-pointer ${
+                  viewSubTab === "registered"
+                    ? "text-blue-500 border-b-2 border-blue-500"
+                    : ""
+                }`}
+              >
                 Registered
               </p>
-              <p onClick={() => setViewSubTab("approved")} className="cursor-pointer">
+              <p
+                onClick={() => setViewSubTab("approved")}
+                className={`cursor-pointer ${
+                  viewSubTab === "approved"
+                    ? "text-blue-500 border-b-2 border-blue-500"
+                    : ""
+                }`}
+              >
                 Approved
               </p>
-              <p onClick={() => setViewSubTab("active")} className="cursor-pointer">
+              <p
+                onClick={() => setViewSubTab("active")}
+                className={`cursor-pointer ${
+                  viewSubTab === "active"
+                    ? "text-blue-500 border-b-2 border-blue-500"
+                    : ""
+                }`}
+              >
                 Active
+              </p>
+              <p
+                onClick={() => setViewSubTab("expired")}
+                className={`cursor-pointer ${
+                  viewSubTab === "expired"
+                    ? "text-blue-500 border-b-2 border-blue-500"
+                    : ""
+                }`}
+              >
+                Expired
               </p>
             </div>
 
@@ -250,21 +353,67 @@ function AdminUser() {
                 ? getRegisteredUsers()
                 : viewSubTab === "approved"
                 ? getUsersByStatus("approved")
-                : getActiveMembers()
-              ).map((user) => (
-                <div key={user._id} className="bg-gray-800 p-4 rounded">
-                  <h3 className="text-xl">{user.username}</h3>
-                  <p>Email: {user.email}</p>
-                  <p>Trainer: {getTrainerDetails(user.assignedTrainer)}</p>
+                : viewSubTab === "active"
+                ? getActiveMembers()
+                : getExpiredMembers()
+              ).map((user) => {
+                const isExpired =
+                  user.membershipEndDate &&
+                  new Date(user.membershipEndDate) < new Date();
 
-                  <button
-                    onClick={() => handleDeleteUser(user._id)}
-                    className="mt-4 bg-red-600 p-2 rounded"
+                return (
+                  <div
+                    key={user._id}
+                    className={`bg-white p-6 rounded-xl shadow ${
+                      viewSubTab === "expired" ? "opacity-80" : ""
+                    }`}
                   >
-                    <FaTrash />
-                  </button>
-                </div>
-              ))}
+                    <h3 className="text-xl font-semibold">{user.username}</h3>
+                    <p>Email: {user.email}</p>
+                    <p>Trainer: {getTrainerDetails(user.assignedTrainer)}</p>
+
+                    {(viewSubTab === "active" || viewSubTab === "expired") && (
+                      <>
+                        <p className="mt-2 font-semibold">
+                          Membership Plan:{" "}
+                          {user.membershipDuration
+                            ? `${user.membershipDuration} Month(s)`
+                            : "N/A"}
+                        </p>
+                        <p className="font-semibold">
+                          Start:{" "}
+                          {user.membershipStartDate
+                            ? new Date(
+                                user.membershipStartDate
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                        <p
+                          className={`font-semibold ${
+                            isExpired ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          Expiry:{" "}
+                          {user.membershipEndDate
+                            ? new Date(
+                                user.membershipEndDate
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                      </>
+                    )}
+
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={() => handleDeleteUser(user._id)}
+                        className="bg-red-600 text-white p-2 rounded"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

@@ -13,7 +13,6 @@ function AdminEnquiry() {
     try {
       const reqHeader = { "Authorization": `Bearer ${token}` };
       const result = await getAllRequestsAPI(reqHeader);
-      console.log(result);
       if (result.status === 200) {
         setAllRequests(result.data);
       }
@@ -38,11 +37,9 @@ function AdminEnquiry() {
 
   // Approve request
   const approveRequest = async (id) => {
-    console.log(id);
     try {
       const reqHeader = { "Authorization": `Bearer ${token}` };
       const result = await approveRequestAPI(id, reqHeader);
-      console.log(result);
       if (result.status === 200) {
         toast.success("Request approved!");
         getAllRequests(); // Refresh list
@@ -55,14 +52,12 @@ function AdminEnquiry() {
 
   // Reject request
   const rejectRequest = async (id) => {
-    console.log(id);
     try {
       const reqHeader = { "Authorization": `Bearer ${token}` };
       const result = await rejectRequestAPI(id, reqHeader);
-      console.log(result);
       if (result.status === 200) {
         toast.success("Request rejected!");
-        getAllRequests(); // Refresh list
+        getAllRequests(); 
       }
     } catch (error) {
       console.log(error);
@@ -70,7 +65,6 @@ function AdminEnquiry() {
     }
   };
 
-  // Helper to get trainer name by ID
   const getTrainerDetails = (trainerId) => {
     const trainer = allTrainers.find(t => t._id === trainerId);
     return trainer ? `${trainer.name} (${trainer.specialization})` : "Unknown Trainer";
@@ -90,34 +84,33 @@ function AdminEnquiry() {
   }, [token]);
 
   return (
-    <div className="flex bg-black min-h-screen text-white">
+    <div className="flex min-h-screen bg-gray-100">
       <AdminSidebar />
       <main className="flex-1 p-10">
-        <h1 className="text-center text-3xl font-bold mb-8">User Requests</h1>
+        <h1 className="text-center text-3xl font-bold mb-8 text-gray-700">User Requests</h1>
 
         {/* Request List */}
-        <div className="md:grid grid-cols-3 w-full my-5">
+        <div className="grid md:grid-cols-3 gap-6">
           {allRequests?.length > 0 ? (
             allRequests.map((request, index) => (
-              <div key={index} className="shadow rounded p-4 m-4 bg-gray-800">
-                <p className="text-white font-bold">User: {request?.userName}</p>
-                <p className="text-gray-300">Time Slot: {request?.timeSlot}</p>
-                <p className="text-gray-300">Goal: {request?.bodyTypeGoal}</p>
-                <p className="text-gray-300">Trainer: {getTrainerDetails(request?.preferredTrainer)}</p>
-
-                <p className="text-gray-300">Status: {request?.status}</p>
+              <div key={index} className="bg-white shadow rounded-xl p-6">
+                <p className="text-gray-900 font-bold">User: {request?.userName}</p>
+                <p className="text-gray-600">Time Slot: {request?.timeSlot}</p>
+                <p className="text-gray-600">Goal: {request?.bodyTypeGoal}</p>
+                <p className="text-gray-600">Trainer: {getTrainerDetails(request?.preferredTrainer)}</p>
+                <p className="text-gray-600">Status: {request?.status}</p>
 
                 {request?.status === "pending" && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => approveRequest(request?._id)}
-                      className="w-full p-2 rounded bg-green-700 text-white hover:bg-green-600"
+                      className="flex-1 p-2 rounded bg-green-700 text-white hover:bg-green-600 transition"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => rejectRequest(request?._id)}
-                      className="w-full p-2 rounded bg-red-700 text-white hover:bg-red-600"
+                      className="flex-1 p-2 rounded bg-red-700 text-white hover:bg-red-600 transition"
                     >
                       Reject
                     </button>
@@ -125,20 +118,20 @@ function AdminEnquiry() {
                 )}
 
                 {request?.status === "approved" && (
-                  <div className="w-full flex justify-end mt-3">
+                  <div className="w-full flex justify-end mt-4">
                     <img
                       src="https://media.istockphoto.com/id/496603666/vector/flat-icon-check.jpg?s=612x612&w=0&k=20&c=BMYf-7moOtevP8t46IjHHbxJ4x4I0ZoFReIp9ApXBqU="
-                      style={{ width: "50px", borderRadius: "50%" }}
+                      className="w-12 h-12 rounded-full"
                       alt="Approved"
                     />
                   </div>
                 )}
 
                 {request?.status === "rejected" && (
-                  <div className="w-full flex justify-end mt-3">
+                  <div className="w-full flex justify-end mt-4">
                     <img
-                      src="https://img.icons8.com/color/48/cancel.png" 
-                      style={{ width: "50px", borderRadius: "50%" }}
+                      src="https://img.icons8.com/color/48/cancel.png"
+                      className="w-12 h-12 rounded-full"
                       alt="Rejected"
                     />
                   </div>
@@ -146,7 +139,7 @@ function AdminEnquiry() {
               </div>
             ))
           ) : (
-            <p className="text-red-700 font-semibold text-center mt-10 text-xl">
+            <p className="text-red-600 font-semibold text-center mt-10 text-xl">
               No requests available...
             </p>
           )}
